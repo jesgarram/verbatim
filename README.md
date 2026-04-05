@@ -8,6 +8,36 @@ So I built a pipeline that edits instead of writes. It takes my transcripts and 
 
 ## How it works
 
+```mermaid
+flowchart TD
+    T[Raw Transcript] --> VP{voice-profile.md exists?}
+    VP -->|no| S
+    VP -->|yes| S
+
+    subgraph one-time ["Run once"]
+        samples[Transcripts / Blog Posts] --> VProfile["/verbatim:voice-profile"]
+        VProfile --> VPFile["voice-profile.md<br/><i>tone · vocabulary · rhythm · structure</i>"]
+    end
+
+    VPFile -.->|informs| S
+
+    subgraph pipeline ["polish-pipeline"]
+        S["/verbatim:structure"] -->|"clean.md<br/>sections · hook · peak tags"| P
+        P["/verbatim:polish"] -->|"draft.md<br/>blog post · anti-slop checked"| R
+
+        subgraph adversarial ["Adversarial refinement · up to 2 rounds"]
+            R["/verbatim:refine"]
+            Critic["Critic<br/><b>Red Team</b><br/>8 quality principles"] --> Editor["Editor<br/><b>Blue Team</b><br/>voice guardian"]
+            Editor -->|accept / reject / partial| Critic
+        end
+    end
+
+    R --> Draft["draft.md ✓<br/>+ refine-log.md"]
+    Draft --> You["Does this sound like you?"]
+    You -->|happy| Blog["src/content/blog/slug.md"]
+    You -->|feedback| R
+```
+
 Five skills, each doing one thing.
 
 **Voice profile.** Feed it a few transcripts or blog posts and it extracts how you talk. Your tone, the words you reach for, your sentence rhythm, how you open and close pieces. This becomes the authority that the rest of the pipeline follows. You only need to do this once, then update it as you write more.
