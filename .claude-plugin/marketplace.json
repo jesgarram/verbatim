@@ -1,0 +1,21 @@
+{
+  "name": "verbatim-marketplace",
+  "owner": {
+    "name": "Jesus Garcia Ramirez"
+  },
+  "metadata": {
+    "description": "Transcript-to-blog editing pipeline plugin for Claude Code",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "verbatim",
+      "source": "./",
+      "description": "Transcript-to-blog pipeline: voice profiling, structuring, polishing, and adversarial refinement",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jesus Garcia Ramirez"
+      }
+    }
+  ]
+}
