@@ -9,33 +9,10 @@ So I built a pipeline that edits instead of writes. It takes my transcripts and 
 ## How it works
 
 ```mermaid
-flowchart TD
-    T[Raw Transcript] --> VP{voice-profile.md exists?}
-    VP -->|no| S
-    VP -->|yes| S
-
-    subgraph one-time ["Run once"]
-        samples[Transcripts / Blog Posts] --> VProfile["/verbatim:voice-profile"]
-        VProfile --> VPFile["voice-profile.md<br/><i>tone · vocabulary · rhythm · structure</i>"]
-    end
-
-    VPFile -.->|informs| S
-
-    subgraph pipeline ["polish-pipeline"]
-        S["/verbatim:structure"] -->|"clean.md<br/>sections · hook · peak tags"| P
-        P["/verbatim:polish"] -->|"draft.md<br/>blog post · anti-slop checked"| R
-
-        subgraph adversarial ["Adversarial refinement · up to 2 rounds"]
-            R["/verbatim:refine"]
-            Critic["Critic<br/><b>Red Team</b><br/>8 quality principles"] --> Editor["Editor<br/><b>Blue Team</b><br/>voice guardian"]
-            Editor -->|accept / reject / partial| Critic
-        end
-    end
-
-    R --> Draft["draft.md ✓<br/>+ refine-log.md"]
-    Draft --> You["Does this sound like you?"]
-    You -->|happy| Blog["src/content/blog/slug.md"]
-    You -->|feedback| R
+flowchart LR
+    T[Raw Transcript] --> S[Structure] --> P[Polish] --> R[Refine] --> D[draft.md]
+    VP[voice-profile.md] -.->|informs| P
+    VP -.->|informs| R
 ```
 
 Five skills, each doing one thing.
@@ -47,6 +24,16 @@ Five skills, each doing one thing.
 **Polish.** The editor-not-writer pass. Tightens sentences, smooths transitions, formats it as a blog post with Astro frontmatter. But it can't add ideas you didn't express, strengthen claims beyond what you said, or formalize your casual language. "Super cool" stays "super cool." There's also an anti-slop list, a big list of banned phrases that signal AI-generated content. If "let's dive in" or "game-changer" sneaks in, it gets caught.
 
 **Refine.** This is the adversarial step. Two sub-agents: a Critic (Red Team) that stress-tests the draft against eight quality principles, things like "does the opening earn attention" and "are claims backed by specifics." Then an Editor (Blue Team) that processes the feedback while protecting your voice. The Editor can reject Critic suggestions. If the Critic says "super cool is too informal," the Editor says "that's the author's voice, not sloppiness" and moves on. The tension between them is the point.
+
+```mermaid
+flowchart LR
+    Draft[draft.md] --> Critic
+    subgraph refine ["Up to 2 rounds"]
+        Critic["Critic · Red Team"] -->|issues| Editor["Editor · Blue Team"]
+        Editor -->|accept / reject / partial| Critic
+    end
+    Editor --> Final[draft.md + refine-log.md]
+```
 
 **Polish pipeline.** Chains all three (structure, polish, refine) in one command. This is what you'll use most of the time.
 
