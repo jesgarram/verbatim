@@ -10,9 +10,10 @@ So I built a pipeline that edits instead of writes. It takes my transcripts and 
 
 ```mermaid
 flowchart LR
-    T[Raw Transcript] --> S[Structure] --> P[Polish] --> R[Refine] --> D[draft.md]
+    T[Raw Transcript] --> S[Structure] --> P[Polish] --> R[Refine] --> E[Edit] --> D[draft.md]
     VP[voice-profile.md] -.->|informs| P
     VP -.->|informs| R
+    VP -.->|informs| E
 ```
 
 Five skills, each doing one thing.
@@ -37,6 +38,8 @@ flowchart LR
 
 **Polish pipeline.** Chains all three (structure, polish, refine) in one command. This is what you'll use most of the time.
 
+**Edit.** A browser-based visual editor for the final human pass. Opens your draft in a BlockNote editor where you can type changes directly or select text and describe what you want changed — Claude edits it for you, following your voice profile. Shows an inline diff so you can accept or reject each AI edit. This is the last step before publishing.
+
 ## Workflow
 
 ```
@@ -46,12 +49,41 @@ flowchart LR
 2. /verbatim:polish-pipeline new-transcript.md --mode presentation
    → Runs structure → polish → refine → produces tmp-new-transcript/draft.md
 
-3. Review the draft, give feedback, iterate
+3. /verbatim:edit tmp-new-transcript/draft.md
+   → Opens visual editor in browser for final human editing pass
 
 4. Move tmp-new-transcript/draft.md to src/content/blog/slug.md when happy
 ```
 
 The voice profile is optional. The pipeline works without it using sensible defaults. But the results are noticeably better with one. More writing samples, better profile.
+
+## Requirements
+
+- [Claude Code](https://code.claude.com/) with an active subscription
+- [Bun](https://bun.sh/) runtime (for the editing UI)
+
+```bash
+# Install Bun if you don't have it
+curl -fsSL https://bun.sh/install | bash
+```
+
+## Editing UI Setup
+
+The editing UI needs a one-time dependency install:
+
+```bash
+cd editing-ui && bun install
+```
+
+After that, just use `/verbatim:edit draft.md` and the skill handles building and launching.
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Cmd+J | Open AI edit panel (select text first) |
+| Escape | Close edit panel / reject changes |
+| Enter | Submit edit instruction |
 
 ## Installation
 
