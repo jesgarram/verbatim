@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verbatim Editor</title>
+  <link rel="stylesheet" href="/dist/index.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fafafa;
+      color: #1a1a1a;
+    }
+
+    .app {
+      max-width: 860px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e5e5;
+      background: white;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .toolbar h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #666;
+    }
+
+    .toolbar button {
+      padding: 6px 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .toolbar button:hover {
+      background: #f3f4f6;
+      border-color: #9ca3af;
+    }
+
+    .toolbar button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .editor-container {
+      flex: 1;
+      padding: 24px 0;
+      background: white;
+    }
+
+    .loading, .error {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-size: 16px;
+      color: #666;
+    }
+
+    .error { color: #dc2626; }
+
+    /* AI Edit Panel */
+    .ai-edit-panel {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 860px;
+      background: white;
+      border-top: 1px solid #e5e5e5;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+      padding: 16px;
+      z-index: 200;
+    }
+
+    .ai-edit-form {
+      display: flex;
+      gap: 8px;
+    }
+
+    .ai-edit-form input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .ai-edit-form input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+    }
+
+    .ai-edit-form button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+
+    .ai-edit-form button[type="submit"] {
+      background: #4f46e5;
+      color: white;
+    }
+
+    .ai-edit-form button[type="submit"]:hover {
+      background: #4338ca;
+    }
+
+    .ai-edit-form button[type="submit"]:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .cancel-btn {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .cancel-btn:hover {
+      background: #e5e7eb;
+    }
+
+    .ai-edit-error {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #dc2626;
+      font-size: 14px;
+    }
+
+    .ai-edit-streaming {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .streaming-indicator {
+      font-size: 13px;
+      color: #6366f1;
+      font-weight: 500;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .streamed-preview {
+      font-size: 14px;
+      color: #374151;
+      line-height: 1.6;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .diff-container {
+      padding: 12px;
+      background: #1e1e2e;
+      border-radius: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .diff-view {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .diff-equal {
+      color: #cdd6f4;
+    }
+
+    .diff-removed {
+      background: rgba(243, 139, 168, 0.2);
+      color: #f38ba8;
+      text-decoration: line-through;
+    }
+
+    .diff-added {
+      background: rgba(166, 227, 161, 0.2);
+      color: #a6e3a1;
+    }
+
+    .ai-edit-result {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .accept-btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      background: #059669;
+      color: white;
+      transition: all 0.15s;
+    }
+
+    .accept-btn:hover {
+      background: #047857;
+    }
+
+    .reject-btn {
+      padding: 10px 24px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      background: white;
+      color: #374151;
+      transition: all 0.15s;
+    }
+
+    .reject-btn:hover {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/dist/index.js"></script>
+</body>
+</html>
