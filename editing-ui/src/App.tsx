@@ -1,10 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Editor } from "./Editor";
 
 export function App() {
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [critiquing, setCritiquing] = useState(false);
+  const [critiqueStatus, setCritiqueStatus] = useState("");
+  const [hasCritique, setHasCritique] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetch("/api/article")
@@ -12,6 +17,24 @@ export function App() {
       .then(setMarkdown)
       .catch((err) => setError(`Failed to load article: ${err.message}`));
   }, []);
+
+  // Elapsed time counter while critiquing
+  useEffect(() => {
+    if (critiquing) {
+      setElapsed(0);
+      timerRef.current = setInterval(() => {
+        setElapsed((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [critiquing]);
 
   async function handleSave(content: string) {
     setSaving(true);
@@ -28,21 +51,67 @@ export function App() {
     }
   }
 
+  function handleCritiqueStateChange(state: {
+    critiquing: boolean;
+    hasIssues: boolean;
+    status: string;
+  }) {
+    setCritiquing(state.critiquing);
+    setHasCritique(state.hasIssues);
+    setCritiqueStatus(state.status);
+  }
+
   if (error) return <div className="error">{error}</div>;
   if (markdown === null) return <div className="loading">Loading article...</div>;
 
   return (
-    <div className="app">
+    <div className={`app${hasCritique ? " has-critique" : ""}`}>
       <header className="toolbar">
-        <h1>Verbatim Editor</h1>
-        <button onClick={() => {
-          const editorEl = document.querySelector("[data-save]") as HTMLElement;
-          editorEl?.click();
-        }} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </button>
+        <h1>verbatim</h1>
+        <div className="toolbar-actions">
+          {critiquing && (
+            <div className="critique-status">
+              <span className="critique-status-dot" />
+              <span>{critiqueStatus}</span>
+              <span className="critique-status-time">{elapsed}s</span>
+            </div>
+          )}
+          {hasCritique && (
+            <button
+              onClick={() => {
+                const el = document.querySelector("[data-clear-critique]") as HTMLElement;
+                el?.click();
+              }}
+              className="clear-critique-btn"
+            >
+              Clear
+            </button>
+          )}
+          <button
+            onClick={() => {
+              const el = document.querySelector("[data-critique]") as HTMLElement;
+              el?.click();
+            }}
+            disabled={saving || critiquing}
+          >
+            {critiquing ? "Critique" : "Critique"}
+          </button>
+          <button
+            onClick={() => {
+              const el = document.querySelector("[data-save]") as HTMLElement;
+              el?.click();
+            }}
+            disabled={saving || critiquing}
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
       </header>
-      <Editor initialMarkdown={markdown} onSave={handleSave} />
+      <Editor
+        initialMarkdown={markdown}
+        onSave={handleSave}
+        onCritiqueStateChange={handleCritiqueStateChange}
+      />
     </div>
   );
 }
