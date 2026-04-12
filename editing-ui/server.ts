@@ -18,6 +18,7 @@ if (!existsSync(resolvedPath)) {
 
 const publicDir = join(import.meta.dir, "public");
 const projectRoot = dirname(resolvedPath);
+const repoRoot = join(import.meta.dir, "..");
 
 // Try to load voice profile from project root or parent directories
 function findVoiceProfile(): string | null {
@@ -71,6 +72,159 @@ ${instruction}
 Return the edited text now:`;
 
   return prompt;
+}
+
+// --- Critique types and helpers ---
+
+interface CritiqueIssue {
+  id: string;
+  priority: "high" | "medium" | "low";
+  location: string;
+  principle: string;
+  problem: string;
+  readerImpact: string;
+  direction: string;
+}
+
+function buildCritiquePrompt(articleMarkdown: string): string | null {
+  const criticPath = join(repoRoot, "skills", "refine", "references", "critic-prompt.md");
+  const principlesPath = join(repoRoot, "skills", "refine", "references", "refinement-principles.md");
+
+  if (!existsSync(criticPath)) {
+    console.error(`Critic prompt not found: ${criticPath}`);
+    return null;
+  }
+  if (!existsSync(principlesPath)) {
+    console.error(`Refinement principles not found: ${principlesPath}`);
+    return null;
+  }
+
+  let prompt = readFileSync(criticPath, "utf-8");
+  const principles = readFileSync(principlesPath, "utf-8");
+
+  prompt = prompt.replace("{round_number}", "1");
+  prompt = prompt.replace("{draft_content}", articleMarkdown);
+  prompt = prompt.replace("{refinement_principles}", principles);
+
+  return prompt;
+}
+
+function parseCritiqueXML(text: string): {
+  issues: CritiqueIssue[];
+  summary: string;
+  verdict: string;
+} {
+  const issues: CritiqueIssue[] = [];
+
+  // Extract <feedback> block
+  const feedbackMatch = text.match(/<feedback>([\s\S]*?)<\/feedback>/);
+  if (!feedbackMatch) {
+    console.error("[critique] No <feedback> block found in response");
+    return { issues: [], summary: "", verdict: "" };
+  }
+  const feedbackXml = feedbackMatch[1];
+
+  // Extract each <issue>
+  const issueRegex = /<issue\s+priority="(high|medium|low)">([\s\S]*?)<\/issue>/g;
+  let issueMatch;
+  let index = 0;
+
+  while ((issueMatch = issueRegex.exec(feedbackXml)) !== null) {
+    const priority = issueMatch[1] as "high" | "medium" | "low";
+    const issueBody = issueMatch[2];
+
+    const extract = (tag: string): string => {
+      const m = issueBody.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+      return m ? m[1].trim() : "";
+    };
+
+    let location = extract("location");
+    // Strip surrounding quotes
+    location = location.replace(/^[""\u201C\u201D]+|[""\u201C\u201D]+$/g, "");
+
+    issues.push({
+      id: `critique-${index}`,
+      priority,
+      location,
+      principle: extract("principle"),
+      problem: extract("problem"),
+      readerImpact: extract("reader_impact"),
+      direction: extract("direction"),
+    });
+    index++;
+  }
+
+  // Extract summary and verdict
+  const summaryMatch = feedbackXml.match(/<summary>([\s\S]*?)<\/summary>/);
+  const verdictMatch = feedbackXml.match(/<verdict>([\s\S]*?)<\/verdict>/);
+
+  return {
+    issues,
+    summary: summaryMatch ? summaryMatch[1].trim() : "",
+    verdict: verdictMatch ? verdictMatch[1].trim() : "",
+  };
+}
+
+async function handleCritique(req: Request): Promise<Response> {
+  let body: { markdown: string };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const { markdown } = body;
+  if (!markdown) {
+    return Response.json({ error: "Missing markdown" }, { status: 400 });
+  }
+
+  const prompt = buildCritiquePrompt(markdown);
+  if (!prompt) {
+    return Response.json({ error: "Could not load critic prompt files" }, { status: 500 });
+  }
+
+  return new Promise((resolve) => {
+    const proc = spawn("claude", [
+      "-p", prompt,
+      "--output-format", "json",
+    ], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on("close", () => {
+      if (stderr) console.error("[claude stderr]", stderr);
+
+      try {
+        const parsed = JSON.parse(stdout);
+        const result = (parsed.result || "").trim();
+
+        if (!result) {
+          resolve(Response.json({ error: "Claude returned empty result" }, { status: 500 }));
+          return;
+        }
+
+        const critique = parseCritiqueXML(result);
+        resolve(Response.json(critique));
+      } catch {
+        resolve(Response.json({ error: "Failed to parse Claude response" }, { status: 500 }));
+      }
+    });
+
+    proc.on("error", (err) => {
+      resolve(Response.json({ error: err.message }, { status: 500 }));
+    });
+  });
 }
 
 // TODO: Add status updates (tool use events) via SSE streaming
@@ -160,6 +314,11 @@ const server = Bun.serve({
     // API: AI edit
     if (url.pathname === "/api/edit" && req.method === "POST") {
       return handleEdit(req);
+    }
+
+    // API: AI critique
+    if (url.pathname === "/api/critique" && req.method === "POST") {
+      return handleCritique(req);
     }
 
     // Static files
