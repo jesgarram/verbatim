@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Adversarial Loop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf9f7;
+    --surface: #ffffff;
+    --border: #e5e1db;
+    --border-light: #efecea;
+    --text: #1a1a1a;
+    --text-sec: #6b6560;
+    --text-muted: #a09a93;
+    --critic: #c0392b;
+    --critic-bg: #fdf2f0;
+    --critic-border: #efd2cd;
+    --editor: #1a7a6a;
+    --editor-bg: #eef7f5;
+    --editor-border: #c8e2dc;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', Georgia, serif;
+    display: flex;
+    justify-content: center;
+    padding: 48px 24px 56px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .diagram { width: 100%; max-width: 960px; }
+
+  /* ── Unified layout: draft → loop-box → article ── */
+  .unified {
+    display: grid;
+    grid-template-columns: auto 36px 1fr 36px auto;
+    align-items: center;
+    gap: 0;
+  }
+
+  .io-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-sec);
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    white-space: nowrap;
+  }
+
+  .io-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Loop box ── */
+  .loop-box {
+    border: 1px solid var(--border-light);
+    border-radius: 16px;
+    padding: 28px 24px 24px;
+    background: var(--surface);
+    position: relative;
+  }
+
+  .loop-tag {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-muted);
+    background: var(--surface);
+    padding: 0 12px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  /* ── Agents grid ── */
+  .arena {
+    display: grid;
+    grid-template-columns: 1fr 88px 1fr;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .agent {
+    border-radius: 12px;
+    padding: 22px 22px 20px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .critic-card {
+    background: var(--critic-bg);
+    border: 1px solid var(--critic-border);
+  }
+
+  .editor-card {
+    background: var(--editor-bg);
+    border: 1px solid var(--editor-border);
+  }
+
+  /* ── Agent header ── */
+  .agent-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .label-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .critic-card .label-dot { background: var(--critic); }
+  .editor-card .label-dot { background: var(--editor); }
+
+  .agent-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .critic-card .agent-name { color: var(--critic); }
+  .editor-card .agent-name { color: var(--editor); }
+
+  .agent-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 1px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+  }
+
+  /* ── Lists ── */
+  .items {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    flex: 1;
+  }
+
+  .items li {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--text-sec);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    line-height: 1.45;
+  }
+
+  .critic-card .items li::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--critic);
+    opacity: 0.3;
+    flex-shrink: 0;
+    margin-top: 6px;
+  }
+
+  .response-icon {
+    font-size: 13px;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+  }
+
+  .r-accept { color: var(--editor); }
+  .r-reject { color: var(--critic); }
+  .r-partial { color: #8b7355; }
+
+  /* ── Voice input to editor ── */
+  .voice-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--editor-border);
+  }
+
+  .voice-arrow {
+    display: flex;
+    align-items: center;
+  }
+
+  .voice-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--editor);
+    opacity: 0.7;
+    background: rgba(26, 122, 106, 0.06);
+    border: 1px solid rgba(26, 122, 106, 0.15);
+    padding: 3px 10px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  .voice-desc {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 300;
+    color: var(--text-muted);
+  }
+
+  /* ── Center arrows ── */
+  .arrows-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 4px;
+  }
+
+  .arrow-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .arrow-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .arrow-spacer { height: 14px; }
+</style>
+</head>
+<body>
+
+<div class="diagram">
+
+  <div class="unified">
+
+    <!-- Input -->
+    <div class="io-label">draft</div>
+
+    <div class="io-arrow">
+      <svg width="36" height="16" viewBox="0 0 36 16" fill="none">
+        <path d="M2 8H26" stroke="var(--border)" stroke-width="1"/>
+        <path d="M24 4L32 8L24 12" stroke="var(--text-muted)" stroke-width="1" fill="none"/>
+      </svg>
+    </div>
+
+    <!-- Loop box -->
+    <div class="loop-box">
+      <span class="loop-tag">refine loop (for n rounds)</span>
+
+      <div class="arena">
+
+        <!-- Critic -->
+        <div class="agent critic-card">
+          <div class="agent-head">
+            <span class="label-dot"></span>
+            <span class="agent-name">Critic</span>
+            <span class="agent-tag">sub-agent</span>
+          </div>
+          <ul class="items">
+            <li>opening earns attention</li>
+            <li>claims backed by specifics</li>
+            <li>no filler, no throat-clearing</li>
+            <li>the piece lands somewhere</li>
+            <li>pacing keeps moving</li>
+          </ul>
+        </div>
+
+        <!-- Arrows -->
+        <div class="arrows-col">
+          <div class="arrow-row">
+            <span class="arrow-label">issues</span>
+            <svg width="60" height="14" viewBox="0 0 60 14" fill="none">
+              <path d="M4 7H50" stroke="var(--critic)" stroke-width="1" stroke-opacity="0.35" stroke-dasharray="4 3"/>
+              <path d="M47 3.5L54 7L47 10.5" stroke="var(--critic)" stroke-width="1" stroke-opacity="0.5" fill="none"/>
+            </svg>
+          </div>
+          <div class="arrow-spacer"></div>
+          <div class="arrow-row">
+            <svg width="60" height="14" viewBox="0 0 60 14" fill="none">
+              <path d="M56 7H10" stroke="var(--editor)" stroke-width="1" stroke-opacity="0.35" stroke-dasharray="4 3"/>
+              <path d="M13 3.5L6 7L13 10.5" stroke="var(--editor)" stroke-width="1" stroke-opacity="0.5" fill="none"/>
+            </svg>
+            <span class="arrow-label">revised</span>
+          </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="agent editor-card">
+          <div class="agent-head">
+            <span class="label-dot"></span>
+            <span class="agent-name">Editor</span>
+            <span class="agent-tag">sub-agent</span>
+          </div>
+          <ul class="items">
+            <li><span class="response-icon r-accept">&#10003;</span> accept &amp; fix</li>
+            <li><span class="response-icon r-partial">&#9679;</span> partially accept</li>
+            <li><span class="response-icon r-reject">&#10005;</span> reject — that's voice</li>
+          </ul>
+          <div class="voice-input">
+            <svg class="voice-arrow" width="14" height="12" viewBox="0 0 14 12" fill="none">
+              <path d="M0 6H10" stroke="var(--editor)" stroke-width="1" stroke-opacity="0.4"/>
+              <path d="M8 3L12 6L8 9" stroke="var(--editor)" stroke-width="1" stroke-opacity="0.5" fill="none"/>
+            </svg>
+            <span class="voice-label">voice profile</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="io-arrow">
+      <svg width="36" height="16" viewBox="0 0 36 16" fill="none">
+        <path d="M2 8H26" stroke="var(--border)" stroke-width="1"/>
+        <path d="M24 4L32 8L24 12" stroke="var(--text-muted)" stroke-width="1" fill="none"/>
+      </svg>
+    </div>
+
+    <!-- Output -->
+    <div class="io-label">article</div>
+
+  </div>
+
+</div>
+
+</body>
+</html>
